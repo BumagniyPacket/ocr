@@ -41,6 +41,14 @@ def text_detect(image):
     return tmp
 
 
+def contrast_up(image, seed_size=10, k=6):
+    map_ = map_maker(image)
+
+    ret = k * (image - map_) + map_
+
+    return ret
+
+
 def remove_background(image):
     """
     Denoising picture function.
