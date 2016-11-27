@@ -24,11 +24,8 @@ def img_open(path):
     :param path: путь к обрабатываемому изображению
     :return: изображение
     """
-    try:
-        image = color.rgb2gray(io.imread(path) / 255.0)
-        return downscale(image)
-    except OSError:
-        return 'Not image!'
+    image = color.rgb2gray(io.imread(path) / 255.0)
+    return downscale(image)
 
 
 def img_write(image, path='ret.png'):
