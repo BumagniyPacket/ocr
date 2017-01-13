@@ -1,41 +1,79 @@
 import numpy as np
-from skimage.filters import gaussian_filter
-from skimage.filters import threshold_otsu
+from skimage.filters import gaussian
+from skimage.filters import threshold_otsu, sobel
+from skimage.morphology import binary_closing, binary_opening, dilation
 from skimage.measure import find_contours
+from skimage.transform import rescale
 
 
-def detect_parts(img, level=10):
-    gauss = gaussian_filter(img, level)
-    thresh = threshold_otsu(gauss)
-    return gauss < thresh
+def segments_extraction(image):
+    image = np.invert(image > .5)
+
+    w, h = image.shape
+
+    scale = 800 / max(w, h)
+    scaled = rescale(image, scale)
+
+    w, h = scaled.shape
+
+    window_o = np.ones((1, int(w / 100)))
+    window = np.ones((8, 8))
+
+    sobel_img = sobel(scaled)
+    open_image = binary_closing(sobel_img, window_o)
+    close_image = binary_opening(open_image, window_o)
+
+    dilate = dilation(close_image, window)
+
+    contours = find_contours(dilate, .8)
+
+    segments = []
+    for contour in contours:
+
+        segment = image[min(contour[:, 0]) / scale:max(contour[:, 0]) / scale,
+                        min(contour[:, 1]) / scale:max(contour[:, 1]) / scale]
+        if segment.mean() <= .05:
+            continue
+
+        coords = min(contour[:, 0]) / scale, \
+                 max(contour[:, 0]) / scale, \
+                 min(contour[:, 1]) / scale, \
+                 max(contour[:, 1]) / scale
+        segments.append((segment, coords))
+
+    return segments
 
 
-# TODO: normal'nuu segmentaciu delai
-def segmentation(img):
-    contours = find_contours(detect_parts(img, 10), .8)
-    return [img[min(c[:, 0]):max(c[:, 0]), min(c[:, 1]):max(c[:, 1])] for c in contours]
-
-
-def line_segmentation(segment, level=1, dst=None):
-    level = level
+def line_segmentation(segment):
+    """
+    В каждой строке массива сегмента расчитывается среднее значение интенсивности пикселей.
+    Если это среднее меньше 1.(самое большое значение интенсивности) значит полезная информация в данной строке есть.
+    Пока значение среднего не будет ровнятся 1. строки записываются...
+    :param segment:
+    :return:
+    """
     lines = []
+    level = 1
+    width = segment.shape[1]
     binary = segment > .7
 
-    up, down = 0, 0
-    for n, bright in enumerate([np.mean(line) for line in binary]):
-        # TODO: vmesto cifri odin v uslovii nugen adaprovanniy pod segment porog(v ideale konechno nugen porog=1)
+    up = down = 0
+    brights = [np.mean(line) for line in binary]
+    for n, bright in enumerate(brights):
         if bright < level and not up:
             up = n - 1
             down = 0
         if bright >= level and not down and up:
             down = n
-            lines.append(binary[up:down, 0:segment.shape[1]])
+            lines.append(binary[up:down, 0:width])
             up = 0
 
-    if dst is None:
-        return lines
-    else:
-        dst += [_ for _ in lines]
+    return lines
+
+    # if dst is None:
+    #     return lines
+    # else:
+    #     dst += [_ for _ in lines]
 
 
 def word_segmentation(line, level=1):
@@ -55,7 +93,10 @@ def word_segmentation(line, level=1):
         elif left_w and not right_w and bright >= level:
             # liters.append((start of word, liter length,
             #                space length before liter))
-            liters.append((left_w, n - left_w, spaces[-1]))
+            try:
+                liters.append((left_w, n - left_w, spaces[-1]))
+            except IndexError:
+                pass
             left_w, right_w = 0, n
 
     mean_space = np.mean(spaces)
