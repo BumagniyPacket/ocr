@@ -82,27 +82,21 @@ def line_segmentation(segment):
     :return:
     """
     lines = []
-    level = 1
+    level = 0
     width = segment.shape[1]
-    binary = segment > .7
 
     up = down = 0
-    brights = [np.mean(line) for line in binary]
+    brights = [np.mean(line) for line in segment]
     for n, bright in enumerate(brights):
-        if bright < level and not up:
+        if bright > level and not up:
             up = n - 1
             down = 0
-        if bright >= level and not down and up:
+        if bright <= level and not down and up:
             down = n
-            lines.append(binary[up:down, 0:width])
+            lines.append(segment[up:down, 0:width])
             up = 0
 
     return lines
-
-    # if dst is None:
-    #     return lines
-    # else:
-    #     dst += [_ for _ in lines]
 
 
 def word_segmentation(line, level=1):
