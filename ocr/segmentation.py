@@ -6,6 +6,30 @@ from skimage.measure import find_contours
 from skimage.transform import rescale
 
 
+def check_intersection(segments):
+    def check_xy(a11, a12, a21, a22):
+        return a21 <= (a11 + a12) / 2 <= a22
+
+    for s_checking in sorted(segments, key=lambda x: x[0].size):
+        for s in segments:
+
+            s1 = s_checking[1]
+            s2 = s[1]
+
+            if s1 == s2:
+                continue
+
+            if check_xy(s1[0], s1[1], s2[0], s2[1]) and \
+                    check_xy(s1[2], s1[3], s2[2], s2[3]):
+                # TODO: nutiznaesh
+                try:
+                    segments.remove(s_checking)
+                except ValueError:
+                    pass
+
+    return segments
+
+
 def segments_extraction(image):
     image = np.invert(image > .5)
 
@@ -19,8 +43,8 @@ def segments_extraction(image):
     window_o = np.ones((1, int(w / 100)))
     window = np.ones((8, 8))
 
-    sobel_img = sobel(scaled)
-    open_image = binary_closing(sobel_img, window_o)
+    sobeled = sobel(scaled)
+    open_image = binary_closing(sobeled, window_o)
     close_image = binary_opening(open_image, window_o)
 
     dilate = dilation(close_image, window)
@@ -42,6 +66,11 @@ def segments_extraction(image):
         segments.append((segment, coords))
 
     return segments
+
+
+def segmentation(img):
+    segments = segments_extraction(img)
+    return check_intersection(segments)
 
 
 def line_segmentation(segment):
