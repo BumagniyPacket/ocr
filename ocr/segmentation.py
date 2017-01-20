@@ -1,8 +1,7 @@
 import numpy as np
-from skimage.filters import gaussian
-from skimage.filters import threshold_otsu, sobel
-from skimage.morphology import binary_closing, binary_opening, dilation
+from skimage.filters import sobel
 from skimage.measure import find_contours
+from skimage.morphology import binary_closing, binary_opening, dilation
 from skimage.transform import rescale
 
 
@@ -31,7 +30,7 @@ def check_intersection(segments):
 
 
 def segments_extraction(image):
-    image = np.invert(image > .5)
+    image = ~(image > .5)
 
     w, h = image.shape
 
@@ -81,17 +80,21 @@ def line_segmentation(segment):
     :param segment:
     :return:
     """
+    # список для хранения строк
     lines = []
-    level = 0
+    # коэфициент для разделения строк
+    c = 0
+    # ширина сегмента
     width = segment.shape[1]
 
     up = down = 0
+
     brights = [np.mean(line) for line in segment]
     for n, bright in enumerate(brights):
-        if bright > level and not up:
+        if bright > c and not up:
             up = n - 1
             down = 0
-        if bright <= level and not down and up:
+        if bright <= c and not down and up:
             down = n
             lines.append(segment[up:down, 0:width])
             up = 0
@@ -99,51 +102,70 @@ def line_segmentation(segment):
     return lines
 
 
-def word_segmentation(line, level=1):
-    pixel_bright = [np.mean(line[:, ax]) for ax in range(line.shape[1])]
-    left_s = right_s = left_w = right_w = 0
-    spaces, liters, ret_words = [], [], []
+def symbol_segmentation(line):
+    """
 
-    for n, bright in enumerate(pixel_bright):
-        if not left_s and bright >= level:
-            left_s, right_s = n, 0
-        elif left_s and not right_s and bright < level:
-            spaces.append(n - left_s)
-            left_s, right_s = 0, n
+    :param line:
+    :return:
+    """
+    # ширина строки
+    line_width = line.shape[1]
+    # cредняя яркость столбов пикселей фрагмента строки
+    mean_bright_l = [np.mean(line[:, __]) for __ in range(line_width)]
+    # коэффициент по которому будем разделять слова и символы
+    c = 0
+    # временные координаты для выделения символа и пробела
+    space_l = space_r = symbol_l = symbol_r = 0
+    # координаты пробела
+    space = None
+    # акумулятор среднего значения пробелов
+    mean_space = 0
+    # список для хранения символов, список на возврат
+    liters, ret_words = [], []
 
-        if not left_w and not left_s and bright < level:
-            left_w, right_w = n, 0
-        elif left_w and not right_w and bright >= level:
-            # liters.append((start of word, liter length,
-            #                space length before liter))
-            try:
-                liters.append((left_w, n - left_w, spaces[-1]))
-            except IndexError:
-                pass
-            left_w, right_w = 0, n
+    for n, bright in enumerate(mean_bright_l):
+        if not space_l and bright <= c:
+            space_l, space_r = n, 0
+        elif space_l and not space_r and bright > c:
+            space = n - space_l
+            mean_space += space
+            space_l, space_r = 0, n
 
-    mean_space = np.mean(spaces)
+        if not symbol_l and not space_l and bright > c:
+            symbol_l, symbol_r = n, 0
+        elif symbol_l and not symbol_r and bright <= c:
+            # (start of word, symbol width, space length before liter)
+            liters.append((symbol_l, n - symbol_l, space))
+            symbol_l, symbol_r = 0, n
+
+    mean_space /= len(liters)
 
     for lit in liters:
-        if not lit[2] < mean_space:
+        start, end, space = lit
+        if not space < mean_space:
             ret_words.append(' ')
-        litter = line[0:line.shape[1], lit[0]:lit[0] + lit[1]]
-        ret_words.append(litter)
+        symbol = line[0:line_width, start:start + end]
+        ret_words.append(allocate_symbol(symbol))
 
     return ret_words + ['\n']
 
 
-def allocate_letter(letter):
-    mean = [np.mean(_) for _ in letter]
-    center = mean.index(min(mean))
+def allocate_symbol(symbol):
+    """
 
-    up, down = center, center
-    for x in range(center, 0, -1):
-        if mean[x] == 1:
-            break
-        up = x
-    for x in range(center, len(mean)):
-        if mean[x] == 1:
-            break
-        down = x + 1
-    return letter[up:down, 0:letter.shape[1]] * 1.
+    :param symbol:
+    :return:
+    """
+    #
+    mean = [np.mean(_) for _ in symbol]
+    #
+    up, down = 0, len(symbol) - 1
+    #
+    с = 0
+
+    while mean[up] <= с:
+        up += 1
+    while mean[down] <= с:
+        down -= 1
+    return symbol[up - 1:down + 1, :]
+
