@@ -5,7 +5,7 @@ from ocr.segmentation import *
 
 
 def get_text(filename):
-    ret_string = ''
+    ret_string = []
     # открываем
     image = img_open(filename)
     # чистим
@@ -20,7 +20,7 @@ def get_text(filename):
         segment_symbol_mean_height = 0
 
         for line in lines:
-            if type(line) == str:
+            if type(line) is str:
                 symbols += line
                 continue
             tmp = symbol_segmentation(line)
@@ -33,7 +33,7 @@ def get_text(filename):
         height = segment_symbol_mean_height / len(lines)
 
         for symbol in symbols:
-            if not type(symbol) == str:
+            if not type(symbol) is str:
                 h, w = symbol.shape
                 good_symbol = predict(symbol)
 
@@ -42,11 +42,11 @@ def get_text(filename):
                 if h < height / 2:
                     good_symbol = '.'
 
-                ret_string += good_symbol
+                ret_string.append(good_symbol)
             else:
-                ret_string += symbol
+                ret_string.append(symbol)
 
-    return ret_string
+    return ''.join(ret_string)
 
 
 def magic(filename):
