@@ -1,30 +1,10 @@
 # -*- coding: utf-8 -*-
-from scipy import signal
 
 import numpy as np
-from skimage.filters.rank import mean_bilateral
-from skimage.filters.rank import mean_percentile
-from skimage.measure import approximate_polygon
-
-from ocr import paint
-from skimage.feature import hog as _hog
-from skimage.filters import threshold_adaptive, canny
 from scipy.ndimage.filters import maximum_filter, median_filter, minimum_filter
 from skimage.filters.rank import mean_bilateral as mean
-from skimage.filters.rank import gradient
-from skimage.filters import laplace
-from skimage.exposure import equalize_adapthist
-from skimage.morphology import disk
-from skimage.transform import rescale, resize
-from scipy.signal import convolve2d as conv
-from skimage.filters import threshold_otsu
-from skimage.morphology import dilation, erosion
-from skimage.transform import hough_line, hough_line_peaks, probabilistic_hough_line
-from skimage.draw import line
-from skimage.measure import find_contours
-from matplotlib import pyplot as plt
-from skimage.filters import gaussian_filter
-from scipy.signal import medfilt2d
+from skimage.filters.rank import mean_percentile
+from skimage.transform import resize
 
 
 def text_detect(image):
@@ -93,7 +73,6 @@ def pyramid_decomposition(image):
     map_mean = mean_percentile(image_2_map, np.ones((2, 2))) / 255.
 
     while min(width, height) > 3:
-
         width, height = int(width / factor), int(height / factor)
 
         map_max = resize(map_max, (width, height))
