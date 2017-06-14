@@ -20,7 +20,7 @@ def get_text(filename):
         segment_symbol_mean_height = 0
 
         for line in lines:
-            if type(line) is str:
+            if isinstance(line, str):
                 symbols += line
                 continue
             tmp = symbol_segmentation(line)
@@ -33,7 +33,7 @@ def get_text(filename):
         height = segment_symbol_mean_height / len(lines)
 
         for symbol in symbols:
-            if not type(symbol) is str:
+            if not isinstance(symbol, str):
                 h, w = symbol.shape
                 good_symbol = predict(symbol)
 
