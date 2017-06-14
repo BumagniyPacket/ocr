@@ -6,7 +6,7 @@ from config import MAX_SIZE
 
 def downscale_an_image(image):
     """
-    Если одна из сторон больше MAX_SIZE то уменьшаем в 
+    Если одна из сторон больше MAX_SIZE то уменьшаем в
     (MAX_SIZE / max_shape) раз
     :param image:
     :return:
