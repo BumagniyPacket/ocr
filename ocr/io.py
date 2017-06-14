@@ -4,9 +4,10 @@ from skimage.transform import rescale
 from config import MAX_SIZE
 
 
-def downscale(image):
+def downscale_an_image(image):
     """
-    Если одна из сторон больше MAX_SIZE то уменьшаем в (MAX_SIZE / max_shape) раз
+    Если одна из сторон больше MAX_SIZE то уменьшаем в 
+    (MAX_SIZE / max_shape) раз
     :param image:
     :return:
     """
@@ -24,11 +25,9 @@ def img_open(path):
     :param path: путь к обрабатываемому изображению
     :return: изображение
     """
-    try:
-        image = color.rgb2gray(io.imread(path) / 255.0)
-        return downscale(image)
-    except OSError:
-        return 'Not image!'
+    image = color.rgb2gray(io.imread(path) / 255.0)
+    normal_image = downscale_an_image(image)
+    return normal_image
 
 
 def img_write(image, path='ret.png'):

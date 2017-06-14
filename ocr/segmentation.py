@@ -1,85 +1,184 @@
 import numpy as np
-from skimage.filters import gaussian_filter
-from skimage.filters import threshold_otsu
+from skimage.filters import sobel
 from skimage.measure import find_contours
+from skimage.morphology import binary_closing, binary_opening, dilation
+from skimage.transform import rescale
 
 
-def detect_parts(img, level=10):
-    gauss = gaussian_filter(img, level)
-    thresh = threshold_otsu(gauss)
-    return gauss < thresh
+def check_intersection(segments):
+    def check_xy(a11, a12, a21, a22):
+        return a21 <= (a11 + a12) / 2 <= a22
+
+    for s_checking in sorted(segments, key=lambda x: x[0].size):
+        for segment in segments:
+            s1 = s_checking[1]
+            s2 = segment[1]
+
+            if s1 == s2:
+                continue
+
+            if check_xy(s1[0], s1[1], s2[0], s2[1]) and \
+                    check_xy(s1[2], s1[3], s2[2], s2[3]):
+                # TODO: нутызнаешь
+                try:
+                    segments.remove(s_checking)
+                except ValueError:
+                    pass
+    segments = list(map(lambda x: x[0], segments))
+    return segments
 
 
-# TODO: normal'nuu segmentaciu delai
+def segments_extraction(image):
+    """
+
+    :param image:
+    :return:
+    """
+    # бинарим изображение
+    binary = image < .5
+    # ширина и высота
+    w, h = image.shape
+    # коэффициент уменьшения изображения для создания карты сегментов
+    scale = 800 / max(w, h)
+    scaled = rescale(binary, scale)
+
+    w, h = scaled.shape
+
+    window_o = np.ones((1, int(w / 100)))
+    window = np.ones((8, 8))
+
+    edges = sobel(scaled)
+    open_image = binary_closing(edges, window_o)
+    close_image = binary_opening(open_image, window_o)
+    #
+    dilate = dilation(close_image, window)
+    #
+    contours = find_contours(dilate, .8)
+    # список для хранения сегментов
+    segments = []
+
+    for contour in contours:
+
+        segment = binary[int(min(contour[:, 0]) / scale):
+                         int(max(contour[:, 0]) / scale),
+                         int(min(contour[:, 1]) / scale):
+                         int(max(contour[:, 1]) / scale)]
+        # Если в сегмента средний уровень яркости маленький, значит полезной
+        # информации там нет
+        if segment.mean() <= .05:
+            continue
+
+        coordinates = min(contour[:, 0]) / scale, max(contour[:, 0]) / scale, \
+                      min(contour[:, 1]) / scale, max(contour[:, 1]) / scale
+        segments.append((segment, coordinates))
+
+    return segments
+
+
 def segmentation(img):
-    contours = find_contours(detect_parts(img, 10), .8)
-    return [img[min(c[:, 0]):max(c[:, 0]), min(c[:, 1]):max(c[:, 1])] for c in contours]
+    segments = segments_extraction(img)
+    return check_intersection(segments)
 
 
-def line_segmentation(segment, level=1, dst=None):
-    level = level
+def line_segmentation(segment):
+    """
+    В каждой строке массива сегмента расчитывается среднее значение 
+    интенсивности пикселей. Если это среднее меньше 1.(самое большое значение
+    интенсивности) значит полезная информация в данной строке есть.
+    Пока значение среднего не будет ровнятся 1. строки записываются...
+    :param segment:
+    :return:
+    """
+    # список для хранения строк
     lines = []
-    binary = segment > .7
+    # коэфициент для разделения строк
+    c = 0
+    # ширина сегмента
+    width = segment.shape[1]
 
-    up, down = 0, 0
-    for n, bright in enumerate([np.mean(line) for line in binary]):
-        # TODO: vmesto cifri odin v uslovii nugen adaprovanniy pod segment porog(v ideale konechno nugen porog=1)
-        if bright < level and not up:
+    up = down = 0
+
+    brights = [np.mean(line) for line in segment]
+    for n, bright in enumerate(brights):
+        if bright > c and not up:
             up = n - 1
             down = 0
-        if bright >= level and not down and up:
+        if bright <= c and not down and up:
             down = n
-            lines.append(binary[up:down, 0:segment.shape[1]])
+            lines.append(segment[up:down, 0:width])
             up = 0
 
-    if dst is None:
-        return lines
-    else:
-        dst += [_ for _ in lines]
+    return lines
 
 
-def word_segmentation(line, level=1):
-    pixel_bright = [np.mean(line[:, ax]) for ax in range(line.shape[1])]
-    left_s = right_s = left_w = right_w = 0
-    spaces, liters, ret_words = [], [], []
+def symbol_segmentation(line):
+    """
 
-    for n, bright in enumerate(pixel_bright):
-        if not left_s and bright >= level:
-            left_s, right_s = n, 0
-        elif left_s and not right_s and bright < level:
-            spaces.append(n - left_s)
-            left_s, right_s = 0, n
+    :param line:
+    :return:
+    """
+    # ширина строки
+    line_width = line.shape[1]
+    # cредняя яркость столбов пикселей фрагмента строки
+    mean_bright_l = [np.mean(line[:, __]) for __ in range(line_width)]
+    # коэффициент по которому будем разделять слова и символы
+    c = 0
+    # временные координаты для выделения символа и пробела
+    space_l = space_r = symbol_l = symbol_r = 0
+    # координаты пробела
+    space = None
+    # акумулятор среднего значения пробелов
+    mean_space = 0
+    # список для хранения символов, список на возврат
+    symbols, ret_words = [], []
 
-        if not left_w and not left_s and bright < level:
-            left_w, right_w = n, 0
-        elif left_w and not right_w and bright >= level:
-            # liters.append((start of word, liter length,
-            #                space length before liter))
-            liters.append((left_w, n - left_w, spaces[-1]))
-            left_w, right_w = 0, n
+    # TODO: если нет пробелов то не находит ничего
+    for n, bright in enumerate(mean_bright_l):
+        if not space_l and bright <= c:
+            space_l, space_r = n, 0
+        elif space_l and not space_r and bright > c:
+            space = n - space_l
+            mean_space += space
+            space_l, space_r = 0, n
 
-    mean_space = np.mean(spaces)
+        if not symbol_l and not space_l and bright > c:
+            symbol_l, symbol_r = n, 0
+        elif symbol_l and not symbol_r and bright <= c:
+            # (start of word, symbol width, space length before liter)
+            symbols.append((symbol_l, n - symbol_l, space))
+            symbol_l, symbol_r = 0, n
 
-    for lit in liters:
-        if not lit[2] < mean_space:
+    mean_space /= len(symbols) - 2
+
+    mean_height = 0
+
+    for symbol in symbols:
+        start, end, space = symbol
+        if not space < mean_space:
             ret_words.append(' ')
-        litter = line[0:line.shape[1], lit[0]:lit[0] + lit[1]]
-        ret_words.append(litter)
+        symbol = allocate_symbol(line[0:line_width, start:start + end])
 
-    return ret_words + ['\n']
+        mean_height += symbol.shape[0]
+
+        ret_words.append(symbol)
+
+    return ret_words + ['\n'], mean_height
 
 
-def allocate_letter(letter):
-    mean = [np.mean(_) for _ in letter]
-    center = mean.index(min(mean))
+def allocate_symbol(symbol):
+    """
+    При выделении линии символы находятся в разных регистрах. Для выделения
+    символа по вертикали сжимаем изображение.
+    :param symbol:
+    :return:
+    """
+    # Яркость рядов фрагмента(символа)
+    mean = [np.mean(_) for _ in symbol]
+    up, down = 0, len(symbol) - 1
+    с = 0
 
-    up, down = center, center
-    for x in range(center, 0, -1):
-        if mean[x] == 1:
-            break
-        up = x
-    for x in range(center, len(mean)):
-        if mean[x] == 1:
-            break
-        down = x + 1
-    return letter[up:down, 0:letter.shape[1]] * 1.
+    while mean[up] <= с:
+        up += 1
+    while mean[down] <= с:
+        down -= 1
+    return symbol[up - 1:down + 1, :]
