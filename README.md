@@ -1,1 +1,2 @@
 # Примитивная система оптического распознавания символов
+[![Codacy Badge](https://api.codacy.com/project/badge/Grade/3967c75ecb2244f4afccdbb4856e7e45)](https://www.codacy.com/app/bumagniypacket/ocr?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=BumagniyPacket/ocr&amp;utm_campaign=Badge_Grade)
