@@ -1,5 +1,5 @@
 from ocr.classifier.predict import predict
-from ocr.io import *
+from ocr.io import img_open
 from ocr.processing import *
 from ocr.segmentation import *
 
@@ -34,7 +34,7 @@ def get_text(filename):
 
         for symbol in symbols:
             if not isinstance(symbol, str):
-                h, w = symbol.shape
+                h, _ = symbol.shape
                 good_symbol = predict(symbol)
 
                 if h < (height + 1):
@@ -52,5 +52,5 @@ def get_text(filename):
 def magic(filename):
     try:
         return get_text(filename)
-    except:
+    except Exception:
         return 'Text not found!'
